@@ -1,5 +1,5 @@
 function leftToRightAddition(x, y) {
-  var x_to_add, y_to_add, temp_sum;
+  var x_to_add, y_to_add, temp_sum, left_digit;
   var x_str = String(x);
   var y_str = String(y);
   var num_of_loops = Math.max(x_str.length, y_str.length);
@@ -17,7 +17,6 @@ function leftToRightAddition(x, y) {
     carry_over = temp_sum.charAt(1);
 
     final_sum = final_sum + left_digit;
-
     ++i;
   }
 

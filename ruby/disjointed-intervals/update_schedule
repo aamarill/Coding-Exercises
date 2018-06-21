@@ -1,0 +1,186 @@
+#!/usr/bin/env ruby
+require 'csv'
+require 'pathname'
+
+def main
+  puts "Verifying input..."
+  if !check_input(ARGV)
+    return
+  end
+
+  csv_input_filename  = ARGV[0]
+  input_intervals = csv_intervals_to_array(csv_input_filename)
+
+  if input_intervals
+    puts "Updating intervals..."
+    intervals_history = update_intervals([], input_intervals)
+  else
+    return
+  end
+
+  csv_output_filename = ARGV[1]
+  write_intervals_csv(intervals_history, csv_output_filename)
+  puts "Done creating file '#{csv_output_filename}'"
+end
+
+def check_input(input_arguments)
+  if input_arguments.length != 2
+    puts "Enter exactly 2 file names"
+    return false
+  end
+
+  pathname = Pathname.new(input_arguments[0])
+  if !pathname.exist?
+    puts "Input CSV file does not exist"
+    return false
+  end
+
+  true
+end
+
+def csv_intervals_to_array(csv_filename)
+  intervals = []
+
+  CSV.foreach(csv_filename) do |row|
+    if check_row(row)
+      intervals << row
+    else
+      return false
+    end
+  end
+
+  intervals
+end
+
+def check_row(row)
+
+  if row.length != 3
+    puts "Error: ensure all CSV rows only contain 3 entires"
+    return false
+  end
+
+  action = row[0]
+  interval_start = row[1].strip
+  interval_end = row[2].strip
+
+  if action != "add" && action != "remove"
+    puts "Invalid action in input"
+    return false
+  end
+
+  if interval_start != interval_start.to_i.to_s || \
+    interval_end != interval_end.to_i.to_s
+
+    puts "Intervals must be integers"
+    return false
+  else
+    if interval_start.to_i >= interval_end.to_i
+      puts "Interval start must be less than interval end"
+      return false
+    end
+
+  end
+
+  true
+end
+
+def update_intervals(intervals, input_intervals)
+  intervals_history = []
+
+  input_intervals.each do |interval|
+    if interval[0] == "add"
+      intervals = insert_interval(intervals, interval)
+    else
+      intervals = remove_interval(intervals, interval)
+    end
+
+    intervals_history << intervals.to_s
+  end
+
+  intervals_history
+end
+
+def string_to_interval(interval_string)
+  interval_string.shift
+  interval_string.map(&:to_i)
+end
+
+def insert_interval(intervals, interval_to_add)
+  interval_to_add = string_to_interval(interval_to_add)
+  updated_intervals = []
+  i = 0
+
+  while i < intervals.length && intervals[i][1] < interval_to_add[0]
+    updated_intervals << intervals[i]
+    i+= 1
+  end
+
+  updated_intervals << interval_to_add
+
+  while i < intervals.length
+    if intervals[i][0] <= updated_intervals[-1][1]
+      low  = [intervals[i][0], updated_intervals[-1][0]].min
+      high = [intervals[i][1], updated_intervals[-1][1]].max
+      updated_intervals[-1] = [low, high]
+    else
+      updated_intervals << intervals[i]
+    end
+
+    i+= 1
+  end
+
+  return updated_intervals
+end
+
+def remove_interval(intervals, interval_to_remove)
+  interval_to_remove = string_to_interval(interval_to_remove)
+  updated_intervals = []
+  i = 0
+
+  while i < intervals.length && intervals[i][1] < interval_to_remove[0]
+    updated_intervals << intervals[i]
+    i += 1
+  end
+
+  while i < intervals.length
+    interval = intervals[i]
+
+    if interval_to_remove[0] <= interval[0] && interval_to_remove[1] > interval[0] && interval_to_remove[1] < interval[1]
+      # interval_to_remove overlaps the interval on its left
+      interval[0] = interval_to_remove[1]
+      updated_intervals << interval
+
+    elsif interval[0] < interval_to_remove[0] && interval[1] > interval_to_remove[1]
+      # interval_to_remove is enclosed by the interval
+      updated_intervals << [interval[0], interval_to_remove[0]]
+      updated_intervals << [interval_to_remove[1], interval[1]]
+
+    elsif interval[0] < interval_to_remove[0] && interval[1] <= interval_to_remove[1] && interval_to_remove[0] < interval[1]
+      # interval_to_remove overlaps the interval on its right
+      interval[1] =  interval_to_remove[0]
+      updated_intervals << interval
+
+    elsif interval[0] >= interval_to_remove[0] && interval[1] <= interval_to_remove[1]
+      # interval_to_remove spans entire interval - do nothing
+
+    else
+
+      updated_intervals << interval
+    end
+
+    i += 1
+  end
+
+  return updated_intervals
+end
+
+def write_intervals_csv(intervals_history, filename)
+  File.open(filename, "w") do |f|
+    intervals_history.each do |interval_set|
+      f.write(interval_set)
+      f.puts @string
+    end
+  end
+end
+
+main
